@@ -29,7 +29,7 @@ module.exports = {
       extends: ['plugin:md/recommended', 'prettier']
     },
     {
-      files: ['*.vue'],
+      files: ['*.vue', '*.ts'],
       extends: [
         'plugin:@typescript-eslint/eslint-recommended',
         'plugin:vue/vue3-recommended',

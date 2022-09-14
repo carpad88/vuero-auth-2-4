@@ -1,3 +1,8 @@
+<route lang="yaml">
+meta:
+  redirectIfLoggedIn: true
+</route>
+
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 

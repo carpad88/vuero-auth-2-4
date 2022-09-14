@@ -1,11 +1,16 @@
+<route lang="yaml">
+meta:
+  redirectIfLoggedIn: true
+</route>
+
 <script setup lang="ts">
-import { useHead } from '@vueuse/head'
+import { toFormValidator } from '@vee-validate/zod'
+import { useForm } from 'vee-validate'
+import { z as zod } from 'zod'
 
-import { useDarkmode } from '/@src/stores/darkmode'
-import { useUserSession } from '/@src/stores/userSession'
-import { useNotyf } from '/@src/composable/useNotyf'
-import sleep from '/@src/utils/sleep'
+type StepId = 'login' | 'forgot-password'
 
+const step = ref<StepId>('login')
 const isLoading = ref(false)
 const darkmode = useDarkmode()
 const router = useRouter()
@@ -14,151 +19,751 @@ const notif = useNotyf()
 const userSession = useUserSession()
 const redirect = route.query.redirect as string
 
-const handleLogin = async () => {
+const validationSchema = toFormValidator(
+  zod.object({
+    email: zod
+      .string({
+        required_error: 'Enter your email first',
+      })
+      .email('A valid email address should be provided'),
+    password: zod
+      .string({
+        required_error: 'Enter your password to sign in',
+      })
+      .min(8, 'Your password should contains at least 8 characters'),
+  })
+)
+
+const { handleSubmit, meta } = useForm({
+  validationSchema,
+  initialValues: {
+    email: '',
+    password: '',
+  },
+})
+
+const handleLogin = handleSubmit(async (values, { setErrors }) => {
   if (!isLoading.value) {
     isLoading.value = true
+    const { login } = useAuth()
 
-    await sleep(2000)
-    userSession.setToken('logged-in')
+    try {
+      await login(values)
+      const api = useApi()
+      const { data } = await api.get('/profile')
 
-    notif.dismissAll()
-    notif.success('Welcome back, Erik Kovalsky')
+      userSession.setUser(data)
+      notif.success('Welcome back!')
 
-    if (redirect) {
-      router.push(redirect)
-    } else {
-      router.push({
-        name: '/app',
-      })
+      if (redirect) {
+        router.push(redirect).then()
+      } else {
+        router.push({ name: '/app' }).then()
+      }
+
+      isLoading.value = false
+    } catch (error: any) {
+      const { errors, message } = error
+      setErrors(errors)
+      notif.error(message)
+      isLoading.value = false
     }
-
-    isLoading.value = false
   }
-}
+})
 
 useHead({
-  title: 'Auth Login - Vuero',
+  title: 'Vuero Auth :: Login',
 })
 </script>
 
 <template>
-  <div class="auth-wrapper-inner columns is-gapless">
-    <!-- Image section (hidden on mobile) -->
-    <div class="column login-column is-8 h-hidden-mobile h-hidden-tablet-p hero-banner">
-      <div class="hero login-hero is-fullheight is-app-grey">
-        <div class="hero-body">
-          <div class="columns">
-            <div class="column is-10 is-offset-1">
-              <img
-                class="light-image has-light-shadow has-light-border"
-                src="/@src/assets/illustrations/apps/vuero-banking-light.webp"
-                alt=""
-              />
-              <img
-                class="dark-image has-light-shadow"
-                src="/@src/assets/illustrations/apps/vuero-banking-dark.webp"
-                alt=""
-              />
-            </div>
-          </div>
-        </div>
-        <div class="hero-footer">
-          <p class="has-text-centered"></p>
-        </div>
-      </div>
-    </div>
+  <div class="modern-login">
+    <div class="underlay h-hidden-mobile h-hidden-tablet-p"></div>
 
-    <!-- Form section -->
-    <div class="column is-4">
-      <div class="hero is-fullheight is-white">
-        <div class="hero-heading">
-          <label
-            class="dark-mode ml-auto"
-            tabindex="0"
-            @keydown.space.prevent="(e) => (e.target as HTMLLabelElement).click()"
-          >
-            <input
-              type="checkbox"
-              :checked="!darkmode.isDark"
-              @change="darkmode.onChange"
-            />
-            <span></span>
-          </label>
-          <div class="auth-logo">
-            <RouterLink to="/">
-              <AnimatedLogo width="36px" height="36px" />
-            </RouterLink>
-          </div>
-        </div>
-        <div class="hero-body">
-          <div class="container">
-            <div class="columns">
-              <div class="column is-12">
-                <div class="auth-content">
-                  <h2>Welcome Back.</h2>
-                  <p>Please sign in to your account</p>
-                  <RouterLink to="/auth/signup-2">
-                    I do not have an account yet
-                  </RouterLink>
-                </div>
-                <div class="auth-form-wrapper">
-                  <!-- Login Form -->
-                  <form @submit.prevent="handleLogin">
-                    <div class="login-form">
-                      <!-- Username -->
-                      <VField>
-                        <VControl icon="feather:user">
-                          <VInput
-                            type="text"
-                            placeholder="Username"
-                            autocomplete="username"
-                          />
-                        </VControl>
-                      </VField>
-
-                      <!-- Password -->
-                      <VField>
-                        <VControl icon="feather:lock">
-                          <VInput
-                            type="password"
-                            placeholder="Password"
-                            autocomplete="current-password"
-                          />
-                        </VControl>
-                      </VField>
-
-                      <!-- Switch -->
-                      <VField>
-                        <VControl class="setting-item">
-                          <VCheckbox label="Remember me" paddingless />
-                        </VControl>
-                      </VField>
-
-                      <!-- Submit -->
-                      <div class="login">
-                        <VButton
-                          :loading="isLoading"
-                          color="primary"
-                          type="submit"
-                          bold
-                          fullwidth
-                          raised
-                        >
-                          Sign In
-                        </VButton>
-                      </div>
-
-                      <div class="forgot-link has-text-centered">
-                        <a>Forgot Password?</a>
-                      </div>
-                    </div>
-                  </form>
+    <div class="columns is-gapless is-vcentered">
+      <div class="column is-relative is-8 h-hidden-mobile h-hidden-tablet-p">
+        <div class="hero is-fullheight is-image">
+          <div class="hero-body">
+            <div class="container">
+              <div class="columns">
+                <div class="column">
+                  <img
+                    class="hero-image"
+                    src="/@src/assets/illustrations/login/station.svg"
+                    alt=""
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+      <div class="column is-4 is-relative">
+        <RouterLink to="/" class="top-logo">
+          <AnimatedLogo width="38px" height="38px" />
+        </RouterLink>
+
+        <label
+          class="dark-mode ml-auto"
+          tabindex="0"
+          @keydown.space.prevent="(e) => (e.target as HTMLLabelElement).click()"
+        >
+          <input
+            data-cy="dark-mode-toggle"
+            type="checkbox"
+            :checked="!darkmode.isDark"
+            @change="darkmode.onChange"
+          />
+          <span></span>
+        </label>
+        <div class="is-form">
+          <div class="hero-body">
+            <div class="form-text" :class="[step !== 'login' && 'is-hidden']">
+              <h2>Sign In</h2>
+              <p>Welcome back to your account.</p>
+            </div>
+            <div class="form-text" :class="[step === 'login' && 'is-hidden']">
+              <h2>Recover Account</h2>
+              <p>Reset your account password.</p>
+            </div>
+            <form
+              data-cy="login-form"
+              :class="[step !== 'login' && 'is-hidden']"
+              class="login-wrapper"
+              @submit.prevent="handleLogin"
+            >
+              <VField id="email" v-slot="{ field }">
+                <VControl icon="lnil lnil-envelope autv-icon">
+                  <VLabel class="auth-label">Email Address</VLabel>
+                  <VInput
+                    data-cy="email-input"
+                    type="email"
+                    autocomplete="current-password"
+                  />
+                  <p v-if="field?.errorMessage" class="help is-danger text-base mt-3">
+                    {{ field.errorMessage }}
+                  </p>
+                </VControl>
+              </VField>
+              <VField id="password" v-slot="{ field }">
+                <VControl icon="lnil lnil-lock-alt autv-icon">
+                  <VLabel class="auth-label">Password</VLabel>
+                  <VInput
+                    data-cy="password-input"
+                    type="password"
+                    autocomplete="current-password"
+                  />
+                  <p v-if="field?.errorMessage" class="help is-danger text-base mt-3">
+                    {{ field.errorMessage }}
+                  </p>
+                </VControl>
+              </VField>
+
+              <VField>
+                <VControl class="is-flex">
+                  <VLabel raw class="remember-toggle">
+                    <VInput raw type="checkbox" />
+
+                    <span class="toggler">
+                      <span class="active">
+                        <i
+                          aria-hidden="true"
+                          class="iconify"
+                          data-icon="feather:check"
+                        ></i>
+                      </span>
+                      <span class="inactive">
+                        <i
+                          aria-hidden="true"
+                          class="iconify"
+                          data-icon="feather:circle"
+                        ></i>
+                      </span>
+                    </span>
+                  </VLabel>
+                  <VLabel raw class="remember-me">Remember Me</VLabel>
+                  <a
+                    tabindex="0"
+                    @keydown.space.prevent="step = 'forgot-password'"
+                    @click="step = 'forgot-password'"
+                  >
+                    Forgot Password?
+                  </a>
+                </VControl>
+              </VField>
+
+              <div class="button-wrap has-help">
+                <VButton
+                  id="login-button"
+                  :loading="isLoading"
+                  color="primary"
+                  type="submit"
+                  size="big"
+                  rounded
+                  raised
+                  bold
+                  :disabled="!meta.valid"
+                >
+                  Confirm
+                </VButton>
+                <span>
+                  Or
+                  <RouterLink to="/auth/signup-1">Create</RouterLink>
+                  an account.
+                </span>
+              </div>
+            </form>
+
+            <form
+              :class="[step !== 'forgot-password' && 'is-hidden']"
+              class="login-wrapper"
+              @submit.prevent
+            >
+              <p class="recover-text">
+                Enter your email and click on the confirm button to reset your password.
+                We'll send you an email detailing the steps to complete the procedure.
+              </p>
+
+              <VField>
+                <VControl icon="lnil lnil-envelope autv-icon">
+                  <VLabel class="auth-label">Email Address</VLabel>
+                  <VInput type="email" autocomplete="current-password" />
+                </VControl>
+              </VField>
+              <div class="button-wrap">
+                <VButton color="white" size="big" lower rounded @click="step = 'login'">
+                  Cancel
+                </VButton>
+                <VButton
+                  color="primary"
+                  size="big"
+                  type="submit"
+                  lower
+                  rounded
+                  solid
+                  @click="step = 'login'"
+                >
+                  Confirm
+                </VButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.modern-login {
+  position: relative;
+  background: var(--white);
+  min-height: 100vh;
+
+  .column {
+    &.is-relative {
+      position: relative;
+    }
+  }
+
+  .hero {
+    &.has-background-image {
+      position: relative;
+
+      .hero-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #5d4298 !important;
+        opacity: 0.6;
+      }
+    }
+  }
+
+  .underlay {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 66.6%;
+    height: 100%;
+    background: #fdfdfd;
+    z-index: 0;
+  }
+
+  .dark-mode {
+    position: absolute;
+    top: -25px;
+    right: 38px;
+    transform: scale(0.6);
+    z-index: 2;
+  }
+
+  .top-logo {
+    position: absolute;
+    top: -30px;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1;
+
+    img {
+      display: block;
+      width: 100%;
+      max-width: 50px;
+      margin: 0 auto;
+    }
+
+    svg {
+      height: 50px;
+      width: 50px;
+    }
+  }
+
+  .is-image {
+    position: relative;
+    border-right: 1px solid var(--fade-grey);
+
+    .hero-image {
+      position: relative;
+      z-index: 2;
+      display: block;
+      margin: -80px auto 0;
+      max-width: 60%;
+      width: 60%;
+    }
+  }
+
+  .is-form {
+    position: relative;
+    max-width: 420px;
+    margin: 0 auto;
+
+    form {
+      animation: fadeInLeft 0.5s;
+    }
+
+    .form-text {
+      padding: 0 20px;
+      animation: fadeInLeft 0.5s;
+
+      h2 {
+        font-family: var(--font-alt);
+        font-weight: 400;
+        font-size: 2rem;
+        color: var(--primary);
+      }
+
+      p {
+        color: var(--muted-grey);
+        margin-top: 10px;
+      }
+    }
+
+    .recover-text {
+      font-size: 0.9rem;
+      color: var(--dark-text);
+    }
+
+    .login-wrapper {
+      padding: 30px 20px;
+
+      .control {
+        position: relative;
+        width: 100%;
+        margin-top: 16px;
+
+        .input {
+          padding-top: 14px;
+          height: 60px;
+          border-radius: 10px;
+          padding-left: 55px;
+          transition: all 0.3s; // transition-all test
+
+          &:focus {
+            background: var(--fade-grey-light-6);
+            border-color: var(--placeholder);
+
+            ~ .auth-label,
+            ~ .autv-icon i {
+              color: var(--muted-grey);
+            }
+          }
+        }
+
+        .error-text {
+          color: var(--danger);
+          font-size: 0.8rem;
+          display: none;
+          padding: 2px 6px;
+        }
+
+        .auth-label {
+          position: absolute;
+          top: 6px;
+          left: 55px;
+          font-size: 0.8rem;
+          color: var(--dark-text);
+          font-weight: 500;
+          z-index: 2;
+          transition: all 0.3s; // transition-all test
+        }
+
+        .autv-icon,
+        :deep(.autv-icon) {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 60px;
+          width: 60px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-size: 24px;
+          color: var(--placeholder);
+          transition: all 0.3s;
+        }
+
+        &.has-validation {
+          .validation-icon {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 60px;
+            width: 60px;
+            display: none;
+            justify-content: center;
+            align-items: center;
+
+            .icon-wrapper {
+              height: 20px;
+              width: 20px;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              border-radius: var(--radius-rounded);
+
+              svg {
+                height: 10px;
+                width: 10px;
+                stroke-width: 3px;
+                color: var(--white);
+              }
+            }
+
+            &.is-success {
+              .icon-wrapper {
+                background: var(--success);
+              }
+            }
+
+            &.is-error {
+              .icon-wrapper {
+                background: var(--danger);
+              }
+            }
+          }
+
+          &.has-success {
+            .validation-icon {
+              &.is-success {
+                display: flex;
+              }
+
+              &.is-error {
+                display: none;
+              }
+            }
+          }
+
+          &.has-error {
+            .input {
+              border-color: var(--danger);
+            }
+
+            .error-text {
+              display: block;
+            }
+
+            .validation-icon {
+              &.is-error {
+                display: flex;
+              }
+
+              &.is-success {
+                display: none;
+              }
+            }
+          }
+        }
+
+        &.is-flex {
+          display: flex;
+          align-items: center;
+
+          a {
+            display: block;
+            margin-left: auto;
+            color: var(--muted-grey);
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+
+            &:hover,
+            &:focus {
+              color: var(--primary);
+            }
+          }
+
+          .remember-me {
+            font-size: 0.9rem;
+            color: var(--muted-grey);
+            font-weight: 500;
+          }
+        }
+      }
+
+      .button-wrap {
+        margin: 40px 0;
+
+        &.has-help {
+          display: flex;
+          align-items: center;
+
+          > span {
+            margin-left: 12px;
+            font-family: var(--font);
+
+            a {
+              color: var(--primary);
+              font-weight: 500;
+              padding: 0 2px;
+            }
+          }
+        }
+
+        .button {
+          height: 46px;
+          width: 140px;
+          margin-left: 6px;
+
+          &:first-child {
+            &:hover {
+              opacity: 0.8;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+.remember-toggle {
+  width: 65px;
+  display: block;
+  position: relative;
+  cursor: pointer;
+  font-size: 22px;
+  user-select: none;
+  transform: scale(0.9);
+
+  input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+
+    &:checked ~ .toggler {
+      border-color: var(--primary);
+
+      .active,
+      .inactive {
+        transform: translateX(100%) rotate(360deg);
+      }
+
+      .active {
+        opacity: 1;
+      }
+
+      .inactive {
+        opacity: 0;
+      }
+    }
+  }
+
+  .toggler {
+    position: relative;
+    display: block;
+    height: 34px;
+    width: 61px;
+    border: 2px solid var(--placeholder);
+    border-radius: 100px;
+    transition: all 0.3s; // transition-all test
+
+    .active,
+    .inactive {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      height: 26px;
+      width: 26px;
+      border-radius: var(--radius-rounded);
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transform: translateX(0) rotate(0);
+      transition: all 0.3s ease;
+
+      svg {
+        color: var(--white);
+        height: 14px;
+        width: 14px;
+        stroke-width: 3px;
+      }
+    }
+
+    .inactive {
+      background: var(--placeholder);
+      border-color: var(--placeholder);
+      opacity: 1;
+      z-index: 1;
+    }
+
+    .active {
+      background: var(--primary);
+      border-color: var(--primary);
+      opacity: 0;
+      z-index: 0;
+    }
+  }
+}
+
+@media only screen and (max-width: 767px) {
+  .modern-login {
+    .top-logo {
+      top: 30px;
+    }
+
+    .dark-mode {
+      top: 36px;
+      right: 44px;
+    }
+
+    .is-form {
+      padding-top: 100px;
+    }
+  }
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  .modern-login {
+    .top-logo {
+      svg {
+        height: 60px;
+        width: 60px;
+      }
+    }
+
+    .dark-mode {
+      top: -58px;
+      right: 30%;
+    }
+
+    .columns {
+      display: flex;
+      height: 100vh;
+    }
+  }
+}
+
+/* ==========================================================================
+Dark mode
+========================================================================== */
+
+.is-dark {
+  .modern-login {
+    background: var(--dark-sidebar);
+
+    .underlay {
+      background: var(--dark-sidebar-light-10);
+    }
+
+    .is-image {
+      border-color: var(--dark-sidebar-light-10);
+    }
+
+    .is-form {
+      .form-text {
+        h2 {
+          color: var(--primary);
+        }
+      }
+
+      .login-wrapper {
+        .control {
+          &.is-flex {
+            a:hover {
+              color: var(--primary);
+            }
+          }
+
+          .input {
+            background: var(--dark-sidebar-light-4);
+
+            &:focus {
+              border-color: var(--primary);
+
+              ~ .autv-icon {
+                i {
+                  color: var(--primary);
+                }
+              }
+            }
+          }
+
+          .auth-label {
+            color: var(--light-text);
+          }
+        }
+
+        .button-wrap {
+          &.has-help {
+            span {
+              color: var(--light-text);
+
+              a {
+                color: var(--primary);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .remember-toggle {
+    input {
+      &:checked + .toggler {
+        border-color: var(--primary);
+
+        > span {
+          background: var(--primary);
+        }
+      }
+    }
+
+    .toggler {
+      border-color: var(--dark-sidebar-light-12);
+
+      > span {
+        background: var(--dark-sidebar-light-12);
+      }
+    }
+  }
+}
+</style>

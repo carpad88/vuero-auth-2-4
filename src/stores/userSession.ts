@@ -1,50 +1,38 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useStorage } from '@vueuse/core'
 
 export type UserData = Record<string, any> | null
 
-export const useUserSession = defineStore('userSession', () => {
-  // token will be synced with local storage
-  // @see https://vueuse.org/core/usestorage/
-  const token = useStorage('token', '')
+export const useUserSession = defineStore(
+  'userSession',
+  () => {
+    const user = ref<Partial<UserData>>()
+    const isLoggedIn = computed(() => user.value !== undefined)
 
-  const user = ref<Partial<UserData>>()
-  const loading = ref(true)
+    function setUser(newUser: Partial<UserData>) {
+      user.value = newUser
+    }
 
-  const isLoggedIn = computed(() => token.value !== undefined && token.value !== '')
+    async function logoutUser() {
+      user.value = undefined
+    }
 
-  function setUser(newUser: Partial<UserData>) {
-    user.value = newUser
+    return {
+      user,
+      isLoggedIn,
+      logoutUser,
+      setUser,
+    } as const
+  },
+  {
+    persistedState: {
+      persist: true,
+    },
   }
-
-  function setToken(newToken: string) {
-    token.value = newToken
-  }
-
-  function setLoading(newLoading: boolean) {
-    loading.value = newLoading
-  }
-
-  async function logoutUser() {
-    token.value = undefined
-    user.value = undefined
-  }
-
-  return {
-    user,
-    token,
-    isLoggedIn,
-    loading,
-    logoutUser,
-    setUser,
-    setToken,
-    setLoading,
-  } as const
-})
+)
 
 /**
- * Pinia supports Hot Module replacement so you can edit your stores and
+ * Pinia supports Hot Module replacement, so you can edit your stores and
  * interact with them directly in your app without reloading the page.
  *
  * @see https://pinia.esm.dev/cookbook/hot-module-replacement.html

@@ -158,7 +158,16 @@ export default defineConfig({
      */
     AutoImport({
       dts: true,
-      imports: ['vue', '@vueuse/core', VueRouterAutoImports],
+      imports: [
+        'vue',
+        '@vueuse/core',
+        VueRouterAutoImports,
+        'vue-i18n',
+        '@vueuse/head',
+        'pinia'
+      ],
+      dirs: ['src/composable', 'src/stores'],
+      vueTemplate: true,
     }),
 
     /**

@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import VueScrollTo from 'vue-scrollto'
-
 import { isLargeScreen } from '/@src/utils/responsive'
-import { useDarkmode } from '/@src/stores/darkmode'
+
+const notif = useNotyf()
+const store = useUserSession()
+const { isLoggedIn } = storeToRefs(store)
+
+const handleLogout = async () => {
+  const { logout } = useAuth()
+  await logout()
+  store.logoutUser()
+  notif.success('Logged out successfully')
+}
 
 const darkmode = useDarkmode()
 const isMobileNavOpen = ref(false)
@@ -87,14 +96,29 @@ watchEffect(() => {
             </span>
           </label>
         </div>
-        <div class="navbar-item">
-          <RouterLink to="/auth/login" class="nav-link"> Login </RouterLink>
-        </div>
-        <div class="navbar-item">
-          <VButton to="/auth/signup" color="primary" rounded raised>
-            <strong>Sign up</strong>
-          </VButton>
-        </div>
+
+        <template v-if="isLoggedIn">
+          <div class="navbar-item">
+            <RouterLink :to="{ name: '/app' }" class="nav-link"> Dashboard </RouterLink>
+          </div>
+
+          <div class="navbar-item">
+            <VButton color="white" rounded raised @click="handleLogout">
+              <strong>Logout</strong>
+            </VButton>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="navbar-item">
+            <RouterLink :to="{ name: '/auth' }" class="nav-link"> Login </RouterLink>
+          </div>
+          <div class="navbar-item">
+            <VButton :to="{ name: '/auth/signup' }" color="primary" rounded raised>
+              <strong>Sign up</strong>
+            </VButton>
+          </div>
+        </template>
       </div>
     </div>
   </nav>

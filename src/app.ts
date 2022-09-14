@@ -4,6 +4,10 @@ import { createHead } from '@vueuse/head'
 import { createPinia } from 'pinia'
 import { createRouter } from './router'
 import VueroApp from './VueroApp.vue'
+import { createPersistedStatePlugin } from 'pinia-plugin-persistedstate-2'
+// @ts-ignore
+import Cookies from 'js-cookie'
+
 import './styles'
 
 import { createApi } from '/@src/composable/useApi'
@@ -29,6 +33,16 @@ export async function createApp() {
   app.use(head)
 
   const pinia = createPinia()
+  pinia.use(
+    createPersistedStatePlugin({
+      persist: false,
+      storage: {
+        getItem: (key) => (Cookies.get(key) ? JSON.parse(Cookies.get(key)) : null),
+        setItem: (key, value) => Cookies.set(key, JSON.stringify(value), { expires: 1 }),
+        removeItem: (key) => Cookies.remove(key),
+      },
+    })
+  )
   app.use(pinia)
 
   const vuero = {

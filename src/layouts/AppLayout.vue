@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { SidebarTheme } from '/@src/components/navigation/desktop/Sidebar.vue'
-import { useViewWrapper } from '/@src/stores/viewWrapper'
 
 const props = withDefaults(
   defineProps<{
